@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Octa-Swap</title>
+    <style>
+        :root {
+            --bg-main: #141722;
+            --bg-card: #222531;
+            --bg-input: #2b2f3d;
+            --green: #00c26f;
+            --green-hover: #00a860;
+            --text-main: #ffffff;
+            --text-muted: #8b949e;
+            --border-radius: 16px;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .widget-container {
+            background-color: var(--bg-card);
+            width: 100%;
+            max-width: 420px;
+            border-radius: var(--border-radius);
+            padding: 24px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Top Navigation Mockup */
+        .header-tabs {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .header-tabs .active {
+            color: var(--text-main);
+            background: rgba(255,255,255,0.1);
+            padding: 5px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--green);
+        }
+
+        /* Inputs */
+        .input-box {
+            background-color: var(--bg-input);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .input-left { display: flex; flex-direction: column; width: 60%; }
+        .input-left label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+        .input-left input {
+            background: transparent; border: none; color: white; font-size: 24px; font-weight: bold; width: 100%; outline: none;
+        }
+        
+        /* Coin Selector Button */
+        .coin-selector {
+            background: transparent; border: none; color: white; font-size: 20px; font-weight: bold;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px;
+        }
+        .coin-selector:hover { background: rgba(255,255,255,0.05); border-radius: 8px; }
+
+        /* Buttons */
+        .btn-main {
+            width: 100%; background-color: var(--green); color: white; border: none; border-radius: 24px;
+            padding: 16px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.2s;
+        }
+        .btn-main:hover { background-color: var(--green-hover); }
+
+        /* Steps */
+        .step { display: none; }
+        .step.active { display: block; }
+
+        /* Step 3 (Deposit) styles */
+        .deposit-box { background: var(--bg-input); padding: 16px; border-radius: 12px; margin-top: 15px; }
+        .deposit-value { font-size: 22px; font-weight: bold; margin-bottom: 15px; word-break: break-all; }
+        .tx-id { font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; }
+
+        /* Coin Modal (Search) */
+        #coinModal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-card); z-index: 10; display: none; flex-direction: column;
+        }
+        .modal-header { padding: 20px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #333;}
+        .modal-header input {
+            flex: 1; background: var(--bg-input); border: none; padding: 12px; border-radius: 8px; color: white; font-size: 16px; outline: none;
+        }
+        .close-btn { background: transparent; border: none; color: white; font-size: 24px; cursor: pointer; }
+        .coin-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; }
+        .coin-list li { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .coin-list li:hover { background: rgba(255,255,255,0.05); }
+        .coin-ticker { font-weight: bold; font-size: 16px; }
+        .coin-network { font-size: 12px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<div class="widget-container">
+    
+    <div id="coinModal">
+        <div class="modal-header">
+            <button class="close-btn" onclick="closeModal()">✕</button>
+            <input type="text" id="searchInput" placeholder="Search crypto..." onkeyup="filterCoins()">
+        </div>
+        <ul class="coin-list" id="coinList"></ul>
+    </div>
+
+    <div id="step1" class="step active">
+        <div class="header-tabs">
+            <div class="active">Exchange</div>
+            <div>Buy / Sell</div>
+            <div>Trade</div>
+        </div>
+
+        <div class="input-box">
+            <div class="input-left">
+                <label>You send</label>
+                <input type="number" id="sendAmount" value="0.1" oninput="estimate()">
+            </div>
+            <button class="coin-selector" onclick="openModal('send')">
+                <span id="sendTicker">BTC</span> ⌄
+            </button>
+        </div>
+
+        <div style="height: 10px; text-align: center; color: var(--text-muted); font-size: 20px;">↑↓</div>
+
+        <div class="input-box">
+            <div class="input-left">
+                <label>You get</label>
+                <input type="text" id="receiveAmount" readonly placeholder="...">
+            </div>
+            <button class="coin-selector" onclick="openModal('receive')">
+                <span id="receiveTicker">ETH</span> ⌄
+            </button>
+        </div>
+
+        <button class="btn-main" onclick="goToStep2()">Exchange</button>
+    </div>
+
+    <div id="step2" class="step">
+        <div class="header-tabs">
+            <button class="close-btn" onclick="goToStep1()" style="font-size: 16px;">← Back</button>
+            <div style="margin-top: 3px;">Transaction details</div>
+        </div>
+
+        <div class="input-box" style="margin-bottom: 20px;">
+            <div class="input-left" style="width: 100%;">
+                <label>Recipient Address</label>
+                <input type="text" id="payoutAddress" placeholder="Enter payout address..." style="font-size: 16px;">
+            </div>
+        </div>
+
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">
+            <input type="checkbox" id="termsBox" checked> I've read and agree to the Terms of Use.
+        </div>
+
+        <button class="btn-main" onclick="startSwap()">Confirm</button>
+    </div>
+
+    <div id="step3" class="step">
+        <div class="tx-id">Transaction ID: <span id="txIdDisplay" style="color: white; font-weight: bold;">...</span></div>
+        
+        <h3 style="font-size: 16px; margin-top: 0;">Please send the funds</h3>
+        
+        <div class="deposit-box">
+            <label style="font-size: 12px; color: var(--text-muted);">Amount</label>
+            <div class="deposit-value"><span id="depAmount">...</span> <span id="depTicker">...</span></div>
+            
+            <label style="font-size: 12px; color: var(--text-muted);">To this address</label>
+            <div class="deposit-value" style="font-size: 16px;" id="depAddress">...</div>
+        </div>
+
+        <button class="btn-main" style="background: transparent; border: 1px solid var(--text-muted); margin-top: 10px;" onclick="alert('QR Code Funktionalität kann hier eingebaut werden')">
+            [ QR Code Button ]
+        </button>
+    </div>
+
+</div>
+
+<script>
+    let allCoins = [];
+    let currentSelection = 'send'; // 'send' or 'receive'
+    
+    // State variables
+    let sendCoinData = { ticker: 'btc', network: 'btc' };
+    let receiveCoinData = { ticker: 'eth', network: 'eth' };
+
+    // 1. Lade alle Coins im Hintergrund
+    async function init() {
+        try {
+            const res = await fetch('/api/currencies');
+            allCoins = await res.json();
+            renderCoinList(allCoins);
+            estimate();
+        } catch (e) { console.error("Konnte Coins nicht laden"); }
+    }
+
+    // Modal & Suche
+    function openModal(type) {
+        currentSelection = type;
+        document.getElementById('coinModal').style.display = 'flex';
+        document.getElementById('searchInput').value = '';
+        renderCoinList(allCoins);
+    }
+    
+    function closeModal() {
+        document.getElementById('coinModal').style.display = 'none';
+    }
+
+    function filterCoins() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = allCoins.filter(c => c.ticker.toLowerCase().includes(query) || c.name.toLowerCase().includes(query));
+        renderCoinList(filtered);
+    }
+
+    function renderCoinList(coins) {
+        const list = document.getElementById('coinList');
+        list.innerHTML = '';
+        coins.forEach(c => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="coin-ticker">${c.ticker.toUpperCase()}</span> <span class="coin-network">${c.network.toUpperCase()}</span>`;
+            li.onclick = () => selectCoin(c);
+            list.appendChild(li);
+        });
+    }
+
+    function selectCoin(coin) {
+        if(currentSelection === 'send') {
+            sendCoinData = coin;
+            document.getElementById('sendTicker').innerText = coin.ticker.toUpperCase();
+        } else {
+            receiveCoinData = coin;
+            document.getElementById('receiveTicker').innerText = coin.ticker.toUpperCase();
+        }
+        closeModal();
+        estimate();
+    }
+
+    // 2. Kurs berechnen
+    async function estimate() {
+        const amount = document.getElementById('sendAmount').value;
+        const receiveInput = document.getElementById('receiveAmount');
+        if(!amount || amount <= 0) { receiveInput.value = ""; return; }
+        
+        receiveInput.value = "lade...";
+        try {
+            const res = await fetch(`/api/estimate?fromCurrency=${sendCoinData.ticker}&fromNetwork=${sendCoinData.network}&toCurrency=${receiveCoinData.ticker}&toNetwork=${receiveCoinData.network}&fromAmount=${amount}`);
+            const data = await res.json();
+            if(data.toAmount) receiveInput.value = data.toAmount;
+            else receiveInput.value = "Fehler";
+        } catch (e) { receiveInput.value = "Offline"; }
+    }
+
+    // 3. Navigation
+    function goToStep1() {
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step1').classList.add('active');
+    }
+    function goToStep2() {
+        document.getElementById('step1').classList.remove('active');
+        document.getElementById('step2').classList.add('active');
+    }
+
+    // 4. Swap ausführen (Backend kontaktieren)
+    async function startSwap() {
+        const amount = document.getElementById('sendAmount').value;
+        const address = document.getElementById('payoutAddress').value;
+        if(!address) { alert("Bitte Adresse eingeben!"); return; }
+
+        document.getElementById('step2').innerHTML = "<h3 style='text-align:center;'>Generiere Swap...</h3>";
+
+        try {
+            const res = await fetch('/api/create-exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fromCurrency: sendCoinData.ticker,
+                    fromNetwork: sendCoinData.network,
+                    toCurrency: receiveCoinData.ticker,
+                    toNetwork: receiveCoinData.network,
+                    fromAmount: amount,
+                    address: address,
+                    flow: "standard"
+                })
+            });
+            const data = await res.json();
+            
+            if(data.payinAddress) {
+                // UI updaten
+                document.getElementById('txIdDisplay').innerText = data.id;
+                document.getElementById('depAmount').innerText = amount;
+                document.getElementById('depTicker').innerText = sendCoinData.ticker.toUpperCase();
+                document.getElementById('depAddress').innerText = data.payinAddress;
+                
+                // Zu Schritt 3 wechseln
+                document.getElementById('step2').classList.remove('active');
+                document.getElementById('step3').classList.add('active');
+            } else {
+                alert("Fehler: " + (data.message || "Unbekannter Fehler"));
+                location.reload(); // Notausstieg
+            }
+        } catch (e) {
+            alert("Server Fehler!");
+            location.reload();
+        }
+    }
+
+    // Start!
+    window.onload = init;
+</script>
+</body>
+</html>
